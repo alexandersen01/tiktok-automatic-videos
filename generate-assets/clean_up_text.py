@@ -70,15 +70,55 @@ def split_and_correct_text(text):
 
 
 def find_gender(text):
-    gender = re.search(r"(?:my|i)\s*\([0-9]*([mf])[0-9]*\)", text.lower())
-    if gender is not None:
-        if gender.group(1).lower().startswith("m"):
+    """
+    Detect the gender of the post author based on common Reddit patterns.
+    Returns 'male' or 'female'.
+    """
+    text_lower = text.lower()
+    
+    # Pattern 1: "I (27M)" or "my (35F)" or "I(M27)" etc.
+    # Matches: I (27M), my (35f), I(M27), me (f 35), I (27 M), etc.
+    pattern1 = re.search(r"(?:^|\s)(?:i|my|me)\s*\(\s*(\d*)\s*([mf])\s*(\d*)\s*\)", text_lower)
+    if pattern1:
+        gender_char = pattern1.group(2)
+        return 'male' if gender_char == 'm' else 'female'
+    
+    # Pattern 2: Standalone age/gender like "27M here" or "F25 here" or "I'm a 30M"
+    pattern2 = re.search(r"(?:i'?m\s+(?:a\s+)?)?(\d+)\s*([mf])\b", text_lower)
+    if pattern2:
+        gender_char = pattern2.group(2)
+        return 'male' if gender_char == 'm' else 'female'
+    
+    # Pattern 3: "M27" or "F25" at start or after "I'm"
+    pattern3 = re.search(r"(?:^|\s|i'?m\s+(?:a\s+)?)([mf])\s*(\d+)", text_lower)
+    if pattern3:
+        gender_char = pattern3.group(1)
+        return 'male' if gender_char == 'm' else 'female'
+    
+    # Pattern 4: Relationship context clues (the author is the opposite gender)
+    # If they mention "my girlfriend/wife" -> author is likely male
+    male_indicators = [
+        "my girlfriend", "my wife", "my fiancée", "my fiancee",
+        "my ex-girlfriend", "my ex-wife", "my gf ",
+        "i'm a guy", "i am a guy", "i'm a man", "i am a man",
+        "as a man", "as a guy", "male here"
+    ]
+    for indicator in male_indicators:
+        if indicator in text_lower:
             return 'male'
-        return 'female'
-
-    if "my girlfriend" in text:
-        return "male"
-
+    
+    # If they mention "my boyfriend/husband" -> author is likely female
+    female_indicators = [
+        "my boyfriend", "my husband", "my fiancé", "my fiance",
+        "my ex-boyfriend", "my ex-husband", "my bf ",
+        "i'm a girl", "i am a girl", "i'm a woman", "i am a woman",
+        "as a woman", "as a girl", "female here"
+    ]
+    for indicator in female_indicators:
+        if indicator in text_lower:
+            return 'female'
+    
+    # Default to female (slightly more common on story subreddits)
     return 'female'
 
 
@@ -96,12 +136,26 @@ if __name__ == '__main__':
     for line in split_and_correct_text(clean_up_text(text)):
         print(line)
 
-    genders = [
-        "I (M35) have 2 sisters that I'm close with, I also have a niece (Leah), Leah's 16 and after my ex wife decided to split up and divorce due to inferitility problems that lasted for 5 years. I started a college fund for Leah to help her go to her chosen college. ",
-        "my (M35) have 2 sisters that I'm close with, I also have a niece (Leah), Leah's 16 and after my ex wife decided to split up and divorce due to inferitility problems that lasted for 5 years. I started a college fund for Leah to help her go to her chosen college. ",
-        "My(M35) have 2 sisters that I'm close with, I also have a niece (Leah), Leah's 16 and after my ex wife decided to split up and divorce due to inferitility problems that lasted for 5 years. I started a college fund for Leah to help her go to her chosen college. ",
-        "My(f35) have 2 sisters that I'm close with, I also have a niece (Leah), Leah's 16 and after my ex wife decided to split up and divorce due to inferitility problems that lasted for 5 years. I started a college fund for Leah to help her go to her chosen college. ",
-        "My (F35) have 2 sisters that I'm close with, I also have a niece (Leah), Leah's 16 and after my ex wife decided to split up and divorce due to inferitility problems that lasted for 5 years. I started a college fund for Leah to help her go to her chosen college. ",
+    # Test gender detection
+    test_cases = [
+        ("I (M35) have 2 sisters", "male"),
+        ("my (M35) have 2 sisters", "male"),
+        ("My(M35) have 2 sisters", "male"),
+        ("My(f35) have 2 sisters", "female"),
+        ("My (F35) have 2 sisters", "female"),
+        ("I'm a 27M and my girlfriend said", "male"),
+        ("So I (25F) told my boyfriend", "female"),
+        ("My wife and I got into a fight", "male"),
+        ("My husband thinks I'm overreacting", "female"),
+        ("I'm a guy and this happened", "male"),
+        ("As a woman, I felt uncomfortable", "female"),
+        ("30M here, need advice", "male"),
+        ("F22 - my roommate is driving me crazy", "female"),
+        ("No gender indicators here", "female"),  # default
     ]
-    for line in genders:
-        print(find_gender(line))
+    
+    print("\nGender detection tests:")
+    for text, expected in test_cases:
+        result = find_gender(text)
+        status = "✅" if result == expected else "❌"
+        print(f"  {status} '{text[:40]}...' -> {result} (expected {expected})")
