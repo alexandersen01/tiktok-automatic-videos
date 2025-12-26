@@ -72,6 +72,10 @@ def main(post_url):
         #     break
         if not phrase:
             continue
+        # Skip phrases that are too short or have no real content
+        phrase = phrase.strip()
+        if len(phrase) < 3 or not any(c.isalpha() for c in phrase):
+            continue
         phrases.append(phrase)
 
     final_script = []

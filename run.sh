@@ -28,7 +28,7 @@ else
     curl -s \
         -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' \
         -H 'Accept: application/json' \
-        'https://old.reddit.com/r/AmItheAsshole/top.json?t=week&limit=25' \
+        'https://old.reddit.com/r/sexstories/top.json?t=week&limit=25' \
         -o "$reddit_response"
 
     # Check if we got valid JSON

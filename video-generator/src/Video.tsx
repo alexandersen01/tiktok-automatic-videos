@@ -1,8 +1,5 @@
 import React from 'react';
-import { Emoji, EmojiProvider } from 'react-apple-emojis';
-import { AbsoluteFill, Audio, Composition, getInputProps, Img, interpolate, random, Sequence, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import emojiData from './emoji-data.json';
-import "./style.css";
+import { AbsoluteFill, Audio, Composition, getInputProps, interpolate, OffthreadVideo, random, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
 
 interface JustContent {
@@ -16,17 +13,22 @@ interface JustContent {
 interface InputProps {
 	content: JustContent[];
 	totalDuration: number;
+	backgroundVideo?: string;
+	backgroundVideoDuration?: number; // Duration of background video in seconds
 }
-
-var img = Img
 
 // Get props passed via CLI --props
 const inputProps = getInputProps() as InputProps;
 
+// Background video duration in seconds - set this to your actual video length
+// The script will pick a random section that fits the content duration
+const BACKGROUND_VIDEO_DURATION_SECONDS = 1852; // 10 minutes - adjust to your video length
+
 export const RemotionVideo: React.FC = () => {
 	const content = inputProps.content || [];
 	const totalDuration = inputProps.totalDuration || 1;
-
+	const backgroundVideo = inputProps.backgroundVideo || staticFile('minecraft-parkour.webm');
+	const backgroundVideoDuration = inputProps.backgroundVideoDuration || BACKGROUND_VIDEO_DURATION_SECONDS;
 
 	const FPS = 30;
 	return (
@@ -35,7 +37,10 @@ export const RemotionVideo: React.FC = () => {
 				id="Main"
 				component={Main}
 				defaultProps={{
-					content
+					content,
+					backgroundVideo,
+					totalDuration,
+					backgroundVideoDuration
 				}}
 				durationInFrames={FPS * Math.max(Math.ceil(totalDuration), 1)}
 				fps={FPS}
@@ -48,44 +53,68 @@ export const RemotionVideo: React.FC = () => {
 
 
 const Main: React.FC<{
-	content: JustContent[]
-}> = ({ content }) => {
-	const { fps, durationInFrames } = useVideoConfig();
+	content: JustContent[],
+	backgroundVideo: string,
+	totalDuration: number,
+	backgroundVideoDuration: number
+}> = ({ content, backgroundVideo, totalDuration, backgroundVideoDuration }) => {
+	const { fps } = useVideoConfig();
+	
+	// Calculate a random starting point in the background video
+	// Ensure we have enough video left to cover the content duration
+	const maxStartTime = Math.max(0, backgroundVideoDuration - totalDuration - 1);
+	// Use random() with a seed based on content length for reproducible results
+	const randomStartTime = random(`bg-start-${content.length}`) * maxStartTime;
+	const startFromFrame = Math.floor(randomStartTime * fps);
+	
 	return (
-		<EmojiProvider data={emojiData}>
-			<AbsoluteFill className='gradient-background'>
-				{
-					content
-						.map(
-							(curContent, i) => {
-								return (
-									<Sequence
-										name={`Content ${i}`}
-										key={`Content ${i}`}
-										durationInFrames={Math.ceil((curContent.duration) * fps)}
-										from={
-											Math.floor(
-												fps * content.slice(0, i)
-													.reduce(
-														(acc, cur) => acc + cur.duration,
-														0
-													)
-											)
-										}
-									>
-										<ContentSequence
-											key={i}
-											content={curContent}
-											index={i}
-											duration={(curContent.duration) * fps}
-										/>
-									</Sequence>
-								)
-							}
-						)
-				}
+		<AbsoluteFill>
+			{/* Background Minecraft parkour video - random section matching content duration */}
+			<AbsoluteFill>
+				<OffthreadVideo
+					src={backgroundVideo}
+					startFrom={startFromFrame}
+					style={{
+						width: '100%',
+						height: '100%',
+						objectFit: 'cover',
+					}}
+					muted
+				/>
 			</AbsoluteFill>
-		</EmojiProvider>
+			
+			{/* Subtle gradient overlay - darker at bottom for text readability */}
+			<AbsoluteFill style={{
+				background: 'linear-gradient(to bottom, transparent 0%, transparent 50%, rgba(0,0,0,0.4) 100%)',
+			}} />
+			
+			{/* Content sequences */}
+			{
+				content.map((curContent, i) => (
+					<Sequence
+						name={`Content ${i}`}
+						key={`Content ${i}`}
+						durationInFrames={Math.ceil((curContent.duration) * fps)}
+						from={
+							Math.floor(
+								fps * content.slice(0, i)
+									.reduce(
+										(acc, cur) => acc + cur.duration,
+										0
+									)
+							)
+						}
+					>
+						<ContentSequence
+							key={i}
+							content={curContent}
+							index={i}
+							duration={(curContent.duration) * fps}
+						/>
+					</Sequence>
+				))
+			}
+		</AbsoluteFill>
 	)
 }
 
@@ -96,137 +125,76 @@ type ContentProps = {
 }
 
 const ContentSequence = (props: ContentProps) => {
-	const { content, index, duration } = props
+	const { content, duration } = props
 	const frame = useCurrentFrame()
-	const { fps, height, width } = useVideoConfig()
+	const { fps } = useVideoConfig()
 
 	const opacity = (offset: number) => {
 		return Math.min(
-			interpolate(frame - offset, [0, 10], [0, 1]),
-			interpolate(frame - offset, [duration - 10, duration], [1, 0], {
+			interpolate(frame - offset, [0, 8], [0, 1]),
+			interpolate(frame - offset, [duration - 8, duration], [1, 0], {
 				extrapolateLeft: 'clamp'
 			}),
 		)
 	}
-	const translate = (offset: number) => spring({ frame: frame - offset, fps, to: -20 })
+	const translate = (offset: number) => spring({ frame: frame - offset, fps, to: -15, durationInFrames: 12 })
 
-	const factor = (index % 2 === 0 ? -1 : 1)
-	const rotate = factor * random(index)
-	const xMove = factor * random(index) * 20
-	const yMove = factor * height / 2 * 0.3 * 0
-
-	const emojiSize = 540 / Math.max(content.emoji.length, 1)
-	const emojiDisplacement = yMove * -1 * 0
-	const numWords = content.text.split(" ").length
-
-	console.log(({
-		yMove,
-		emojiDisplacement
-	}))
-
-	const pt = 150
-	const pr = 150
-
-	// Filter out empty/null emoji names to prevent component errors
-	const validEmojis = content.emoji.filter(e => e && typeof e === 'string' && e.trim().length > 0);
-	
-	const EmojiComponent = () => (
-		validEmojis.length > 0 ? (
-			<div style={{
-				display: "flex",
-				justifyContent: "center",
-				width: "100%",
-				opacity: opacity(0),
-				transform: `rotate(${-5 * rotate}deg)`,
-				marginTop: '10em',
-				background: 'rgba(255, 255, 255, 0.5)',
-				padding: '5em',
-				borderRadius: '20em',
-			}}>
-				{
-					validEmojis.map(
-						e => <Emoji key={e} name={e} width={emojiSize} />
-					)
-				}
-			</div>
-		) : null
-	)
-	const TextComponent = () => (
-		<div style={{
-			padding: "1em",
-			paddingLeft: '4em',
-			paddingRight: '4em',
-			width: '100%',
-			textAlign: "center",
-			transform: `rotate(${3 * rotate}deg)`,
-			background: 'black',
-			color: 'white',
-			borderRadius: '4em',
-			opacity: opacity(0) * 0.95,
-			maxWidth: "100%",
-			marginTop: '10em'
-		}}
-		>
-			<p style={{
-				fontSize: '3.5em',
-				textAlign: "center",
-				fontFamily: "arial, sans-serif",
-				fontWeight: "bold",
-			}}>
-				{
-					content.text
-						.split(' ')
-						.map(
-							(word, i) => (
-								<span style={{
-									display: 'inline-block',
-									opacity: opacity(i),
-									transform: `translateY(${translate(i)}px)`,
-									marginLeft: 11
-								}}
-								>
-									{word}
-								</span>
-							)
-						)
-				}
-			</p>
-		</div>
-	)
-
-	let ordering = [];
-	if (factor > 0) {
-		ordering = [
-			EmojiComponent,
-			TextComponent
-		]
-	}
-	else {
-		ordering = [
-			TextComponent,
-			EmojiComponent
-		]
-	}
+	// Text outline for readability without a background box
+	const textStroke = `
+		-3px -3px 0 #000,
+		3px -3px 0 #000,
+		-3px 3px 0 #000,
+		3px 3px 0 #000,
+		-3px 0 0 #000,
+		3px 0 0 #000,
+		0 -3px 0 #000,
+		0 3px 0 #000,
+		0 0 20px rgba(0,0,0,0.8)
+	`;
 
 	return (
 		<AbsoluteFill>
+			{/* Bottom-positioned text overlay */}
 			<div style={{
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-				marginRight: '10em',
-				marginTop: '10em'
+				position: 'absolute',
+				bottom: '15%',
+				left: 0,
+				right: 0,
+				display: 'flex',
+				justifyContent: 'center',
+				padding: '0 2em',
 			}}>
-				<div style={{
-					padding: "5em"
+				<p style={{
+					fontSize: '3.4em',
+					textAlign: 'center',
+					fontFamily: "'Arial Black', 'Segoe UI Black', sans-serif",
+					fontWeight: 900,
+					lineHeight: 1.3,
+					margin: 0,
+					color: 'white',
+					textShadow: textStroke,
+					maxWidth: '95%',
 				}}>
 					{
-						ordering.map(component => component())
+						content.text
+							.split(' ')
+							.map((word, i) => (
+								<span 
+									key={i}
+									style={{
+										display: 'inline-block',
+										opacity: opacity(i),
+										transform: `translateY(${translate(i)}px)`,
+										marginRight: 14,
+									}}
+								>
+									{word}
+								</span>
+							))
 					}
-				</div>
+				</p>
 			</div>
 			<Audio src={content.audioFile} />
 		</AbsoluteFill>
 	)
-
 }
