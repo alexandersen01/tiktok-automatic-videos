@@ -1,34 +1,33 @@
+import asyncio
 import sys
 from pathlib import Path
 
-from google.cloud import texttospeech
-from mutagen.mp3 import MP3
+import edge_tts
 
 
-def synthesize_audio(text, outfile, gender='female'):
-    client = texttospeech.TextToSpeechClient()
-    synthesis_input = texttospeech.SynthesisInput(text=text)
+# Microsoft Edge TTS voices (free, no API key needed)
+VOICES = {"female": "en-US-JennyNeural", "male": "en-US-GuyNeural"}
 
-    voice = texttospeech.VoiceSelectionParams(
-        language_code="en-US",
-        name="en-US-Wavenet-F" if gender.lower(
-        )[0] == 'f' else "en-US-Wavenet-D"
+
+async def _synthesize_audio_async(text, outfile, gender="female"):
+    voice = VOICES.get(gender.lower(), VOICES["female"])
+
+    communicate = edge_tts.Communicate(
+        text=text,
+        voice=voice,
+        rate="+35%",  # Equivalent to 1.35x speed
+        pitch="+4Hz",  # Slight pitch increase
     )
 
-    audio_config = texttospeech.AudioConfig(
-        audio_encoding=texttospeech.AudioEncoding.MP3,
-        pitch=3.8,
-        speaking_rate=1.35
-    )
+    await communicate.save(str(outfile))
 
-    response = client.synthesize_speech(
-        input=synthesis_input, voice=voice, audio_config=audio_config
-    )
 
-    with open(outfile, "wb") as out:
-        out.write(response.audio_content)
+def synthesize_audio(text, outfile, gender="female"):
+    """Synchronous wrapper for the async TTS function."""
+    asyncio.run(_synthesize_audio_async(text, outfile, gender))
 
 
 if __name__ == "__main__":
-    file = sys.argv[1]
-    main(Path(file).resolve())
+    text = sys.argv[1] if len(sys.argv) > 1 else "Hello, this is a test."
+    outfile = sys.argv[2] if len(sys.argv) > 2 else "test_output.mp3"
+    synthesize_audio(text, Path(outfile).resolve())

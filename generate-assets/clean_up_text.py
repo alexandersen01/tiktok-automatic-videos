@@ -26,7 +26,7 @@ def inside_parenthesis(text):
 
 
 def uppercase_age(text):
-    return re.sub("(\([0-9]+ ?)([mf])(\s*\))", lambda match: r'{}{}{}'.format(match.group(1).upper(), match.group(2).upper(), match.group(3).upper()), text)
+    return re.sub(r"(\([0-9]+ ?)([mf])(\s*\))", lambda match: r'{}{}{}'.format(match.group(1).upper(), match.group(2).upper(), match.group(3).upper()), text)
 
 
 def is_edit(sentence):
@@ -41,9 +41,9 @@ def split_and_correct_text(text):
     text = re.sub(r"\*", " - ", text)
     text = re.sub(r" \'", "'", text)
 
-    text = re.sub("\s+", " ", text)
-    text = re.sub("\.+", ".", text)
-    text = re.sub(",+", ",", text)
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\.+", ".", text)
+    text = re.sub(r",+", ",", text)
     sentences = sent_tokenize(".".join(text.split("\n")))
 
     for sentence in sentences:
@@ -70,7 +70,7 @@ def split_and_correct_text(text):
 
 
 def find_gender(text):
-    gender = re.search("(?:my|i)\s*\([0-9]*([mf])[0-9]*\)", text.lower())
+    gender = re.search(r"(?:my|i)\s*\([0-9]*([mf])[0-9]*\)", text.lower())
     if gender is not None:
         if gender.group(1).lower().startswith("m"):
             return 'male'

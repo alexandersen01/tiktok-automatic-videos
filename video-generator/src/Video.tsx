@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { Emoji, EmojiProvider } from 'react-apple-emojis';
-import { AbsoluteFill, Audio, Composition, continueRender, delayRender, Img, interpolate, random, Sequence, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Audio, Composition, getInputProps, Img, interpolate, random, Sequence, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import emojiData from './emoji-data.json';
 import "./style.css";
 
@@ -13,54 +13,19 @@ interface JustContent {
 	emoji: string[]
 }
 
+interface InputProps {
+	content: JustContent[];
+	totalDuration: number;
+}
+
 var img = Img
 
+// Get props passed via CLI --props
+const inputProps = getInputProps() as InputProps;
+
 export const RemotionVideo: React.FC = () => {
-
-	const baseUrl = 'https://storage.googleapis.com/tiktok-video-assets/video-assets'
-	const projectId = process.env.REMOTION_PROJECT_ID //'aita_for_wearing_jeans_and_a_top_at_my_sisters'
-	const projectAssets = `${baseUrl}/${projectId}`
-	const scriptUrl = `${baseUrl}/${projectId}/script.json`
-
-	const [content, setContent] = useState<JustContent[]>([])
-	const [totalDuration, setTotalDuration] = useState(0)
-	const [handle] = useState(() => delayRender())
-
-	const fetchData = useCallback(async () => {
-		console.log(scriptUrl)
-		const headers = new Headers()
-		headers.append('Content-Type', 'application/json');
-		headers.append('Accept', 'application/json');
-		headers.append('Origin', 'http://localhost:3000');
-		const response = await fetch(scriptUrl, {})
-		const json = await response.json()
-
-		const parsedContent: JustContent[] = [json.title, ...json.script]
-			.map(
-				entry => ({
-					text: entry.text,
-					duration: Math.max(entry.duration, 1),
-					audioFile: `${projectAssets}/sounds/${entry.audio_file}`,
-					start: 0,
-					emoji: [entry.emoji]
-				})
-			)
-		setContent(parsedContent)
-		setTotalDuration(
-			Math.ceil(
-				parsedContent.reduce(
-					(acc, cur) => acc + cur.duration,
-					0
-				)
-			)
-		)
-
-		continueRender(handle)
-	}, [handle])
-
-	useEffect(() => {
-		fetchData()
-	}, [])
+	const content = inputProps.content || [];
+	const totalDuration = inputProps.totalDuration || 1;
 
 
 	const FPS = 30;
@@ -120,7 +85,7 @@ const Main: React.FC<{
 						)
 				}
 			</AbsoluteFill>
-		</EmojiProvider >
+		</EmojiProvider>
 	)
 }
 
@@ -150,7 +115,7 @@ const ContentSequence = (props: ContentProps) => {
 	const xMove = factor * random(index) * 20
 	const yMove = factor * height / 2 * 0.3 * 0
 
-	const emojiSize = 540 / content.emoji.length
+	const emojiSize = 540 / Math.max(content.emoji.length, 1)
 	const emojiDisplacement = yMove * -1 * 0
 	const numWords = content.text.split(" ").length
 
@@ -162,8 +127,11 @@ const ContentSequence = (props: ContentProps) => {
 	const pt = 150
 	const pr = 150
 
+	// Filter out empty/null emoji names to prevent component errors
+	const validEmojis = content.emoji.filter(e => e && typeof e === 'string' && e.trim().length > 0);
+	
 	const EmojiComponent = () => (
-		content.emoji.filter(e => !!e).length ? (
+		validEmojis.length > 0 ? (
 			<div style={{
 				display: "flex",
 				justifyContent: "center",
@@ -171,12 +139,12 @@ const ContentSequence = (props: ContentProps) => {
 				opacity: opacity(0),
 				transform: `rotate(${-5 * rotate}deg)`,
 				marginTop: '10em',
-				background: 'rgba(255, 255, 255, 0.5',
+				background: 'rgba(255, 255, 255, 0.5)',
 				padding: '5em',
 				borderRadius: '20em',
 			}}>
 				{
-					content.emoji.map(
+					validEmojis.map(
 						e => <Emoji key={e} name={e} width={emojiSize} />
 					)
 				}
